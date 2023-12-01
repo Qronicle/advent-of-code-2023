@@ -1,0 +1,18 @@
+<?php
+
+namespace AdventOfCode\Solutions;
+
+use AdventOfCode\Common\Solution\AbstractSolution;
+
+class Day{{day_nr}} extends AbstractSolution
+{
+    protected function solvePart1(): string
+    {
+        return ':(';
+    }
+
+    protected function solvePart2(): string
+    {
+        return ':(';
+    }
+}

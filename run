@@ -1,0 +1,23 @@
+#!/usr/bin/env php
+<?php
+
+require_once ('vendor/autoload.php');
+
+$dayAndPart = explode('.', $_SERVER['argv'][1] ?? '');
+if (!count($dayAndPart) == 2) {
+    die("Pass argument as day.part, eg. 8.1\n");
+}
+$day = str_pad((int)$dayAndPart[0], 2, '0', STR_PAD_LEFT);
+$part = (int)$dayAndPart[1];
+$inputSuffix = $_SERVER['argv'][2] ?? null;
+$inputFilename = __DIR__ . '/var/input/day' . $day . ($inputSuffix ? '-' . $inputSuffix : '') . '.txt';
+
+$className = "AdventOfCode\Solutions\Day$day";
+$solution = new $className();
+$startTime = microtime(true);
+$result = $solution->solve($part, $inputFilename, $inputSuffix);
+$endTime = microtime(true);
+
+echo $result . "\n";
+echo "\e[90mDuration: " . round($endTime - $startTime, 5) . " sec\n";
+echo "Memory: " . round(memory_get_peak_usage() / (1024 * 1024), 2) . " MB\n";
