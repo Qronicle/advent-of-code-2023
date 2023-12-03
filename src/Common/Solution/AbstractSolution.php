@@ -31,4 +31,10 @@ abstract class AbstractSolution
     {
         return explode("\n", $this->rawInput);
     }
+
+    protected function getInputMap(?string $input = null): array
+    {
+        $input ??= $this->rawInput;
+        return array_map(fn (string $val) => str_split($val), explode("\n", $input));
+    }
 }
