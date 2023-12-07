@@ -9,15 +9,9 @@ class Day05 extends AbstractSolution
     protected function solvePart1(): string
     {
         $almanac = new Almanac($this->rawInput);
-        $conversions = ['soil', 'fertilizer', 'water', 'light', 'temperature', 'humidity', 'location'];
         $min = PHP_INT_MAX;
-        foreach ($almanac->getSeeds() as $val) {
-            $sourceCategory = 'seed';
-            foreach ($conversions as $targetCategory) {
-                $val = $almanac->getDestination($val, $sourceCategory, $targetCategory);
-                $sourceCategory = $targetCategory;
-            }
-            $min = min($min, $val);
+        foreach ($almanac->getSeeds() as $seed) {
+            $min = min($min, $almanac->getLocation($seed));
         }
         return $min;
     }
@@ -25,25 +19,11 @@ class Day05 extends AbstractSolution
     protected function solvePart2(): string
     {
         $almanac = new Almanac($this->rawInput);
-        $almanac->flattenMaps();
-        $conversions = ['soil', 'fertilizer', 'water', 'light', 'temperature', 'humidity', 'location'];
         $min = PHP_INT_MAX;
         $seeds = $almanac->getSeeds();
         for ($i = 0; $i < count($seeds); $i += 2) {
-            $start = $seeds[$i];
-            $range = $seeds[$i + 1];
-            echo "> $start (" . ($i+1) . '/' . (count($seeds) / 2) . ")\n";
-            for ($seed = $start; $seed < $start + $range; $seed++) {
-                $sourceCategory = 'seed';
-                $val = $seed;
-                foreach ($conversions as $targetCategory) {
-                    $val = $almanac->getDestination($val, $sourceCategory, $targetCategory);
-                    $sourceCategory = $targetCategory;
-                }
-                // echo "$seed > $val\n";
-                $min = min($min, $val);
-            }
-            echo " > min: $min\n";
+            $location = $almanac->getLowestLocationInRange($seeds[$i], $seeds[$i + 1]);
+            $min = min($min, $location);
         }
         return $min;
     }
@@ -54,8 +34,8 @@ class Almanac
     /** @var int[] */
     protected array $seeds;
 
-    /** @var array<string,array<string,array<int[]>>> */
-    protected array $maps;
+    /** @var Range[] */
+    protected array $map;
 
     public function __construct(string $content)
     {
@@ -65,101 +45,89 @@ class Almanac
         preg_match_all('/\d+/', array_shift($parts), $seedMatches);
         $this->seeds = $seedMatches[0];
 
-        // Maps
+        // Mapping
+        $mappings = [];
         foreach ($parts as $part) {
             $map = explode("\n", $part);
-            preg_match('/^([a-z]+)-to-([a-z]+) map:$/', array_shift($map), $mappedCategoryMatches);
-            [, $targetCategory, $sourceCategory] = $mappedCategoryMatches;
+            array_shift($map);
             $map = array_map(fn(string $value) => explode(' ', $value), $map);
-            usort($map, $this->sortMap(...));
-            // $this->maps[$sourceCategory][$targetCategory] = $map;
-            $this->maps[$targetCategory][$sourceCategory] = $this->createReverseMap($map);
+            $mappings[] = $this->createReverseMap($map);
         }
+
+        $this->map = $this->flattenMaps($mappings);
     }
 
-    public function flattenMaps(): void
+    public function flattenMaps(array $maps): array
     {
-        $map1 = $this->maps['seed']['soil'];
-        $map2 = $this->maps['soil']['fertilizer'];
-        $limits = [];
-        foreach ($map1 as $values) {
-            $range = new Range($values[0], $values[1], $values[2]);
-            $limits[] = $range;
-        }
-        $ranges = $this->cleanupRanges($limits);
-        // dump(implode("\n", $ranges));
-        $minRange = 0;
-        foreach ($map2 as [$source, $target, $length]) {
-            $newRange = new Range($source, $target, $length);
-            // merge range into
-            for ($r = $minRange; $r < count($ranges); $r++) {
-                $range = $ranges[$r];
-                if (
-                    ($newRange->source >= $range->target && $newRange->source <= $range->targetEnd)
-                    || ($newRange->sourceEnd >= $range->target && $newRange->sourceEnd <= $range->targetEnd)
-                ) {
-                    $splitRanges = $this->splitRanges($range, $newRange);
-                    dump($this->dump($splitRanges));
-                    array_splice($ranges, $r, 1, $splitRanges);
-                    $minRange = $r + 1;
-                    $r += count($splitRanges) - 1;
-                    dump('-----', $this->dump($ranges), '-----');
+        $ranges = [];
+        $maxSource = -1;
+        foreach ($maps as $depth => $map) {
+            foreach ($map as [$source, $target, $length]) {
+                // Merge with existing ranges
+                $newRange = new Range($source, $target, $length, $depth);
+                for ($r = 0; $r < count($ranges); $r++) {
+                    $range = $ranges[$r];
+                    if ($range->depth === $newRange->depth) {
+                        continue; // already replaced this time around!
+                    }
+                    // Split the range when there is an intersection!
+                    if (
+                        ($newRange->source >= $range->target && $newRange->source <= $range->targetEnd)
+                        || ($newRange->sourceEnd >= $range->target && $newRange->sourceEnd <= $range->targetEnd)
+                        || ($newRange->source <= $range->targetEnd && $newRange->sourceEnd >= $range->targetEnd)
+                    ) {
+                        $splitRanges = $this->splitRanges($range, $newRange);
+                        array_splice($ranges, $r, 1, $splitRanges);
+                        $r += count($splitRanges) - 1;
+                    }
                 }
+                // Gap to last
+                if ($source > $maxSource + 1) {
+                    // Create range from last range to start of this
+                    $ranges[] = new Range($maxSource + 1, $maxSource + 1, $source - $maxSource - 1, $depth);
+                    // And add the new range like there's no tomorrow
+                    $ranges[] = new Range($source, $target, $length, $depth);
+                    $maxSource = $source + $length - 1;
+                    // We can't continue to loop here because reasons
+                }
+                // Gap after last
+                if ($newRange->sourceEnd > $maxSource) {
+                    $offset = $maxSource + 1 - $newRange->source;
+                    $ranges[] = new Range($maxSource + 1, $newRange->target + $offset, $newRange->sourceEnd - $maxSource, $depth);
+                }
+                // Update max source only here
+                $maxSource = max($maxSource, $newRange->sourceEnd);
             }
-            die;
         }
-        die;
-        dump($this->dump($ranges));
-        $ranges = $this->cleanupRanges($ranges);
-        dump('---');
-        dd($this->dump($ranges));
-    }
-
-    protected function dump(array $ranges): string
-    {
-        return implode("\n", $ranges);
+        return $ranges;
     }
 
     protected function splitRanges(Range $range, Range $newRange): array
     {
-        dump($range);
         $splitRanges = [];
-        if ($newRange->source <= $range->target) {
-            $overLap = min($range->length, $newRange->source - $range->target + $newRange->length);
-            $splitRanges[] = new Range($range->source, $newRange->target, $overLap);
-        } else {
-            dd('existing part be higher');
+
+        // Existing range ends
+        if ($newRange->source > $range->target) {
+            $splitRanges[] = new Range($range->source, $range->target, $newRange->source - $range->target, $range->depth);
         }
-        if ($range->targetEnd > $newRange->sourceEnd) {
-            $length = $range->targetEnd - $newRange->sourceEnd;
-            $offset = $range->length - $length;
-            $splitRanges[] = new Range($range->source + $offset, $range->target + $offset, $length);
+
+        // New range
+        $start = max($newRange->source, $range->target);
+        $end = min($newRange->sourceEnd, $range->targetEnd);
+        $offset = $start - $range->target;
+        $sourceStart = $range->source + $offset;
+        $targetOffset = $start - $newRange->source;
+        $addedRange = new Range($sourceStart, $newRange->target + $targetOffset, $end - $start + 1, $newRange->depth);
+        $splitRanges[] = $addedRange;
+
+        // Existing range ends
+        if ($newRange->sourceEnd < $range->targetEnd) {
+            $start = $addedRange->sourceEnd + 1;
+            $offset = $start - $range->source;
+            $splitRanges[] = new Range($start, $range->target + $offset, $range->targetEnd - $newRange->sourceEnd, $range->depth);
         }
+
         return $splitRanges;
-    }
-
-    /**
-     * @param Range[] $ranges
-     * @return Range[]
-     */
-    protected function cleanupRanges(array $ranges): array
-    {
-        usort($ranges, $this->sortRanges(...));
-        $cleanedRanges = [];
-        $max = 0;
-        foreach ($ranges as $range) {
-            if ($range->target > $max + 1) {
-                $cleanedRanges[] = new Range($max, $max, $range->target - $max);
-            }
-            $cleanedRanges[] = $range;
-            $max = max($max, $range->targetEnd);
-        }
-        return $cleanedRanges;
-    }
-
-    protected function sortRanges(Range $a, Range $b): int
-    {
-        return $a->target <=> $b->target;
     }
 
     public function getSeeds(): array
@@ -167,26 +135,35 @@ class Almanac
         return $this->seeds;
     }
 
-    public function getDestination(int $source, string $sourceCategory, string $targetCategory): int
+    public function getLocation(int $seed): int
     {
-        $map = $this->maps[$sourceCategory][$targetCategory];
-        foreach ($map as $values) {
-            if ($values[0] > $source) {
-                continue;
-            }
-            if ($values[0] + $values[2] > $source) {
-                $target = $source - $values[0] + $values[1];
-                // echo "$source $sourceCategory > $target $targetCategory\n";
-                return $target;
+        foreach ($this->map as $range) {
+            if ($range->contains($seed)) {
+                return $range->getTargetValue($seed);
             }
         }
-        // echo "$source $sourceCategory > $source $targetCategory\n";
-        return $source;
+        return $seed;
     }
 
-    protected function sortMap(array $a, array $b): int
+    public function getLowestLocationInRange(int $start, int $range): int
     {
-        return $a[0] <=> $b[0];
+        $min = PHP_INT_MAX;
+        $end = $start + $range - 1;
+        $seed = $start;
+        while (true) {
+            foreach ($this->map as $range) {
+                if ($range->contains($seed)) {
+                    $min = min($range->getTargetValue($seed), $min);
+                    // skip to end of range
+                    if ($range->sourceEnd >= $end) {
+                        break 2;
+                    }
+                    $seed = $range->sourceEnd + 1;
+                    continue 2;
+                }
+            }
+        }
+        return $min;
     }
 
     protected function createReverseMap(array $map): array
@@ -194,6 +171,11 @@ class Almanac
         $reverseMap = array_map(fn(array $values) => [$values[1], $values[0], $values[2]], $map);
         usort($reverseMap, $this->sortMap(...));
         return $reverseMap;
+    }
+
+    protected function sortMap(array $a, array $b): int
+    {
+        return $a[0] <=> $b[0];
     }
 }
 
@@ -206,13 +188,24 @@ readonly class Range {
         public int $source,
         public int $target,
         public int $length,
+        public int $depth,
     ) {
-        $this->sourceEnd = $this->source + $this->length - 1;
-        $this->targetEnd = $this->target + $this->length - 1;
+        $this->sourceEnd = $this->source - 1 + $this->length;
+        $this->targetEnd = $this->target - 1 + $this->length;
     }
 
     public function __toString(): string
     {
-        return sprintf('Range %s - %s (%s - %s)', $this->target, $this->targetEnd, $this->source, $this->sourceEnd);
+        return sprintf('Range %s - %s => %s - %s', $this->source, $this->sourceEnd, $this->target, $this->targetEnd);
+    }
+
+    public function contains(int $source): bool
+    {
+        return $source >= $this->source && $source <= $this->sourceEnd;
+    }
+
+    public function getTargetValue(int $source): int
+    {
+        return $this->target + $source - $this->source;
     }
 }
