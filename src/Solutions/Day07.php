@@ -57,9 +57,15 @@ class CamelHand
         foreach ($cardCount as $count) {
             $numCounts[$count]++;
         }
-        $this->value = self::$jokerEnabled && ($cardCount[1] ?? false)
+        $handValue = self::$jokerEnabled && ($cardCount[1] ?? false)
             ? $this->calculateValueWithJoker($numCounts, $cardCount[1])
             : $this->calculateValue($numCounts);
+        $this->value = $handValue * 10000000000
+            + $this->cards[0] * 100000000
+            + $this->cards[1] * 1000000
+            + $this->cards[2] * 10000
+            + $this->cards[3] * 100
+            + $this->cards[4];
     }
 
     protected function calculateValue(array $numCounts): int
@@ -70,11 +76,8 @@ class CamelHand
         if ($numCounts[4]) {
             return 6;
         }
-        if ($numCounts[3] && $numCounts[2]) {
-            return 5;
-        }
         if ($numCounts[3]) {
-            return 4;
+            return $numCounts[2] ? 5 : 4;
         }
         if ($numCounts[2]) {
             return $numCounts[2] == 2 ? 3 : 2;
@@ -101,17 +104,7 @@ class CamelHand
 
     public static function compare(CamelHand $a, CamelHand $b): int
     {
-        $valueCmp = $a->value <=> $b->value;
-        if ($valueCmp !== 0) {
-            return $valueCmp;
-        }
-        for ($i = 0; $i < 5; $i++) {
-            $cardCmp = $a->cards[$i] <=> $b->cards[$i];
-            if ($cardCmp !== 0) {
-                return $cardCmp;
-            }
-        }
-        throw new \Exception("Naughty naughty");
+        return $a->value <=> $b->value;
     }
 
     public static function enableJoker(): void
