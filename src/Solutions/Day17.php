@@ -37,31 +37,29 @@ class Day17 extends AbstractSolution
             $map[$y][0]->minDirectionValue[Direction::LEFT] = -1;
             $map[$y][$targetX]->minDirectionValue[Direction::RIGHT] = -1;
         }
-        /** @var Route[] $routes */
-        $routes = [new Route(0, 0, Direction::RIGHT), new Route(0, 0, Direction::DOWN)];
+        $routes = [[0, 0, Direction::RIGHT, 0], [0, 0, Direction::DOWN, 0]];
         $min = null;
         while ($routes) {
             $newRoutes = [];
-            foreach ($routes as $route) {
-                if ($route->x === $targetX && $route->y === $targetY) {
-                    if (!$min || $route->value < $min) {
-                        $min = $route->value;
+            foreach ($routes as [$routeX, $routeY, $routeDir, $routeValue]) {
+                if ($routeX === $targetX && $routeY === $targetY) {
+                    if (!$min || $routeValue < $min) {
+                        $min = $routeValue;
                     }
                     continue;
                 }
-                $tile = $map[$route->y][$route->x];
-                foreach ($outgoingDirs[$route->direction] as $direction => $coords) {
+                $tile = $map[$routeY][$routeX];
+                foreach ($outgoingDirs[$routeDir] as $direction => $coords) {
                     // check whether the route value is lower than the lowest one that started here in this direction
-                    if ($tile->minDirectionValue[$direction] <= $route->value) {
+                    if ($tile->minDirectionValue[$direction] <= $routeValue) {
                         continue;
                     }
-                    $tile->minDirectionValue[$direction] = $route->value;
+                    $tile->minDirectionValue[$direction] = $routeValue;
                     // Add three new routes
-                    $newValue = $route->value;
-                    //$newCoords = $route->coords;
+                    $newValue = $routeValue;
                     for ($len = 1; $len <= $maxLen; $len++) {
-                        $x = $route->x + $coords[0] * $len;
-                        $y = $route->y + $coords[1] * $len;
+                        $x = $routeX + $coords[0] * $len;
+                        $y = $routeY + $coords[1] * $len;
                         if (!isset($map[$y][$x])) {
                             break;
                         }
@@ -69,8 +67,7 @@ class Day17 extends AbstractSolution
                         if ($len < $minLen) {
                             continue;
                         }
-                        $estValue = ($targetY - $y) + ($targetX - $x) + $newValue; // best (im)possible outcome
-                        $newRoutes[] = new Route($x, $y, $direction, $newValue, $estValue);
+                        $newRoutes[] = [$x, $y, $direction, $newValue];
                     }
                 }
             }
@@ -93,18 +90,6 @@ class Tile
         public int $value,
     ) {
         $this->minDirectionValue = array_fill(0, 4, PHP_INT_MAX);
-    }
-}
-
-class Route
-{
-    public function __construct(
-        public int $x,
-        public int $y,
-        public int $direction,
-        public int $value = 0,
-        public int $estValue = 0,
-    ) {
     }
 }
 
