@@ -2,10 +2,7 @@
 
 namespace AdventOfCode\Solutions;
 
-use AdventOfCode\Common\Output\ImageOutput;
-use AdventOfCode\Common\Output\TextOutput;
 use AdventOfCode\Common\Solution\AbstractSolution;
-use AdventOfCode\Common\Utils\MapUtils;
 
 class Day18 extends AbstractSolution
 {
@@ -62,9 +59,9 @@ class Day18 extends AbstractSolution
             }
             $lava = $newLava;
         }
-        ImageOutput::map($map, 'day18.png', 1, [' ' => [255, 255, 255], '#' => [0, 0, 0]]);
 
         // Calculate size
+
         $size = 0;
         foreach ($map as $row) {
             foreach ($row as $tile) {
@@ -72,47 +69,31 @@ class Day18 extends AbstractSolution
             }
         }
         return $size;
-        // The ole technique that fails
-        $sum = 0;
-        $prevSum = 0;
-        ksort($map);
-        foreach ($map as $y => $row) {
-            ksort($row);
-            if ($y === -56) {
-                dump($row);
-            }
-            $in = false;
-            $prevX = null;
-            foreach ($row as $x => $color) {
-                $sum += 1; // border is always counted
-                if ($prevX !== null && $x - 1 > $prevX) {
-                    $in = !$in;
-                    if ($in) {
-                        $sum += $x - $prevX - 1;
-                    }
-                }
-                $prevX = $x;
-            }
-            $width = $sum - $prevSum;
-            $prevSum = $sum;
-            dump("$y: $width");
-        }
-        return $sum;
-        // 49282 = too high
-        // 35280 = too low
     }
 
     protected function solvePart2(): string
     {
-        ini_set('memory_limit', '12G');
+        $dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
-        $lines = [];
-        $dirs = ['R', 'D', 'L', 'U'];
+        $points = [];
+        $x = 0;
+        $y = 0;
+        $perimeter = 0;
         foreach ($this->getInputLines() as $line) {
+            // Convert line to point
             $len = hexdec(substr($line, -7, 5));
             $dir = substr($line, -2, 1);
-            $lines[] = $dirs[$dir] . ' ' . $len;
+            $x += $dirs[$dir][0] * $len;
+            $y += $dirs[$dir][1] * $len;
+            $points[] = [$x, $y];
+            $perimeter += $len;
         }
-        return $this->solvePart1($lines);
+        $numPoints = count($points);
+        $points[] = $points[0];
+        $area = 0;
+        for ($i = 0; $i < $numPoints; $i++) {
+            $area += $points[$i][0] * $points[$i + 1][1] - $points[$i][1] * $points[$i + 1][0];
+        }
+        return $area / 2 + $perimeter / 2 + 1;
     }
 }
