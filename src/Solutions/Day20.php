@@ -14,9 +14,7 @@ class Day20 extends AbstractSolution
 
     protected function solvePart2(): string
     {
-        $system = $this->createPulseSystem([
-            'rx' => new LowPulseDetector('rx'),
-        ]);
+        $system = $this->createPulseSystem();
         return $system->findLowPulse();
     }
 
@@ -93,19 +91,40 @@ class PulseSystemFromHell
     {
         //$states = [$this->getState() => 0];
         $cycle = 0;
-        while (!$this->modules['rx']->lowPulseDetected) {
-            $this->runCycle();
-            //$state = $this->getState();
-            // if (isset($states[$state])) {
-            //     dd($states[$state], $i, $numPulses);
-            //     return array_product($numPulses);
-            // }
-            //$states[$state] = $i;
-            if (++$cycle % 1000000 === 0) {
-                dump("iteration $cycle");
+        $cycleStarters = $this->modules['broadcaster']->getOutputs();
+        $accumulator = $this->modules['rx']->getInputs()[0];
+        $cycleEnders = $accumulator->getInputs();
+
+        // Map starters to enders
+        $cycleMapper = [];
+        foreach ($cycleStarters as $cycleStarter) {
+            $handled = [];
+            $new = [$cycleStarter];
+            while ($new) {
+                $newNew = [];
+                foreach ($new as $newModule) {
+                    if (in_array($newModule, $cycleEnders, true)) {
+                        $cycleMapper[$cycleStarter->name] = $newModule;
+                        break 2;
+                    }
+                    $handled[$newModule->name] = true;
+                    foreach ($newModule->getOutputs() as $module) {
+                        if (!isset($handled[$module->name])) {
+                            $newNew[] = $module;
+                        }
+                    }
+                }
+                $new = $newNew;
             }
         }
-        return $cycle;
+
+        $buttonPresses = null;
+        foreach ($cycleStarters as $starter) {
+            $ender = $cycleMapper[$starter->name];
+            $cyclePresses = $this->runCycleUntilHighConjunctionPulse($starter, $ender);
+            $buttonPresses = $buttonPresses === null ? $cyclePresses : least_common_multiple($buttonPresses, $cyclePresses);
+        }
+        return $buttonPresses;
     }
 
     protected function getState(): string
@@ -134,6 +153,27 @@ class PulseSystemFromHell
             $queue = $newQueue;
         }
         return $nums;
+    }
+
+    protected function runCycleUntilHighConjunctionPulse(Broadcaster $starter, Conjunction $conjunction): int
+    {
+        $step = 0;
+        while (++$step) {
+            $queue = [new Pulse($this->modules['broadcaster'], $starter, false)];
+            while ($queue) {
+                $newQueue = [];
+                foreach ($queue as $pulse) {
+                    if ($pulse->input === $conjunction && $pulse->pulse) {
+                        return $step;
+                    }
+                    $newQueue = [
+                        ...$newQueue,
+                        ...$pulse->output->processPulse($pulse->input, $pulse->pulse),
+                    ];
+                }
+                $queue = $newQueue;
+            }
+        }
     }
 }
 
@@ -188,6 +228,16 @@ class Broadcaster
     public function getState(): string
     {
         return '';
+    }
+
+    public function getInputs(): array
+    {
+        return $this->inputs;
+    }
+
+    public function getOutputs(): array
+    {
+        return $this->outputs;
     }
 }
 
@@ -252,19 +302,6 @@ class Output extends Broadcaster
     public function processPulse(Broadcaster $broadcaster, bool $pulse): array
     {
         //dump('OUT: ' . ($pulse ? 'high' : 'low'));
-        return [];
-    }
-}
-
-class LowPulseDetector extends Broadcaster
-{
-    public bool $lowPulseDetected = false;
-
-    public function processPulse(Broadcaster $broadcaster, bool $pulse): array
-    {
-        if (!$pulse) {
-            $this->lowPulseDetected = true;
-        }
         return [];
     }
 }
