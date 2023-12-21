@@ -91,7 +91,11 @@ class ImageOutput
     public static function pngSequenceToGif(string $dir, string $filename): void
     {
         $files = glob("$dir/*.png");
-        $last = array_last($files);
-        exec("convert -delay 2 $dir/*.png -delay 200 $last $dir/$filename");
+        $last = escapeshellarg(array_last($files));
+        $input = escapeshellarg("$dir/*.png");
+        $output = escapeshellarg("$dir/$filename");
+        $command = "convert -delay 10 $input -delay 200 $last $output";
+        dump($command);
+        exec($command);
     }
 }
