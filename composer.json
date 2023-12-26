@@ -6,6 +6,8 @@
     "files": ["src/Common/functions.php"]
   },
   "require": {
-    "ext-gd": "*"
+    "ext-gd": "*",
+    "graphp/graphviz": "^1@dev",
+    "graphp/graph": "^1@dev"
   }
 }
