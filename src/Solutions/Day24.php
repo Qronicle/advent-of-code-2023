@@ -15,11 +15,12 @@ class Day24 extends AbstractSolution
         $count = 0;
         for ($i = 0; $i < $numHails - 1; $i++) {
             for ($ii = $i + 1; $ii < $numHails; $ii++) {
-                $intersection = $hails[$i]->intersect2d($hails[$ii]);
+                $intersection = $hails[$i]->intersectXY($hails[$ii]);
                 if (!$intersection) {
                     continue;
                 }
-                if ($intersection->x < $limit[0] || $intersection->y < $limit[0] || $intersection->x > $limit[1] || $intersection->y > $limit[1]) {
+                [$x, $y] = $intersection;
+                if ($x < $limit[0] || $y < $limit[0] || $x > $limit[1] || $y > $limit[1]) {
                     continue;
                 }
                 $count++;
@@ -54,9 +55,8 @@ class Day24 extends AbstractSolution
         // this normal defines the plane between (0,0,0) and two stone[1] points over time
         $normal = $stones[1]->position->crossProduct($stones[1]->positionAt(1));
 
-        [$p2, $t2] = $this->linePlaneIntersection($normal, $stones[2]);
-        [$p3, $t3] = $this->linePlaneIntersection($normal, $stones[3]);
-        dd('!!!', $p3, $t3);
+        [$p2, $t2] = $stones[2]->planeIntersection($normal);
+        [$p3, $t3] = $stones[3]->planeIntersection($normal);
 
         $tDiff = $t2 - $t3;
         $dir = $p2->sub($p3)->divide($tDiff);
@@ -64,24 +64,7 @@ class Day24 extends AbstractSolution
 
         $stone = new Ray($pos->add($rootPosition), $dir->add($rootVelocity));
 
-        return $stone->position->x + $stone->position->y + $stone->position->z;
-
-        // 1098236662065353 = too high
-        // 1013832282296690 = too high
-    }
-
-    /**
-     * @return array{Point3, int}
-     */
-    protected function linePlaneIntersection(Point3 $normal, Ray $ray)
-    {
-        // https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
-        $a = (new Point3(0,0,0))->sub($ray->position)->dotProduct($normal);
-        $b = $ray->velocity->dotProduct($normal);
-        $t = intdiv($a, $b);
-        dump($t);
-        $p = $ray->position->add($ray->velocity->multiply($t));
-        return [$p, $t];
+        return (int)bcadd(bcadd($stone->position->x, $stone->position->y), $stone->position->z);
     }
 
     /** @return Ray[] */
@@ -91,8 +74,8 @@ class Day24 extends AbstractSolution
         foreach ($this->getInputLines() as $line) {
             [$pos, $vel] = explode(' @ ', $line);
             $hails[] = new Ray(
-                new Point3(...explode(', ', $pos)),
-                new Point3(...explode(', ', $vel)),
+                new Vector3(...array_map('trim', explode(', ', $pos))),
+                new Vector3(...array_map('trim', explode(', ', $vel))),
             );
         }
         return $hails;
@@ -104,146 +87,126 @@ class Ray
     public Vector3 $direction;
 
     public function __construct(
-        public Point3 $position,
-        public Point3 $velocity,
+        public Vector3 $position,
+        public Vector3 $velocity,
     ) {
-        $this->direction = $this->velocity->unit2d();
+        $this->direction = $this->velocity->unit();
     }
 
-    public function intersect2d(Ray $ray): ?Vector3
+    public function intersectXY(Ray $ray): ?array
     {
-        $dx = $ray->position->x - $this->position->x;
-        $dy = $ray->position->y - $this->position->y;
-        $det = $ray->direction->x * $this->direction->y - $ray->direction->y * $this->direction->x;
+        $det = bcsub(bcmul($ray->direction->x, $this->direction->y), bcmul($ray->direction->y, $this->direction->x));
         if ($det == 0) {
             return null;
         }
-        $u = ($dy * $ray->direction->x - $dx * $ray->direction->y) / $det;
-        $v = ($dy * $this->direction->x - $dx * $this->direction->y) / $det;
+
+        $dx = bcsub($ray->position->x, $this->position->x);
+        $dy = bcsub($ray->position->y, $this->position->y);
+        $u = bcdiv(bcsub(bcmul($dy, $ray->direction->x), bcmul($dx, $ray->direction->y)), $det);
+        $v = bcdiv(bcsub(bcmul($dy, $this->direction->x), bcmul($dx, $this->direction->y)), $det);
         if ($u < 0 || $v < 0) {
             return null;
         }
 
+        return [
+            (int)bcadd($this->position->x, bcmul($u, $this->direction->x)),
+            (int)bcadd($this->position->y, bcmul($u, $this->direction->y)),
+        ];
+    }
+
+    public function positionAt(int $t): Vector3
+    {
         return new Vector3(
-            $this->position->x + $u * $this->direction->x,
-            $this->position->y + $u * $this->direction->y,
-            0,
+            bcadd($this->position->x, bcmul($t, $this->velocity->x)),
+            bcadd($this->position->y, bcmul($t, $this->velocity->y)),
+            bcadd($this->position->z, bcmul($t, $this->velocity->z)),
         );
     }
 
-    public function positionAt(int $t): Point3
+    /**
+     * @return array{Vector3, int}
+     */
+    public function planeIntersection(Vector3 $normal): array
     {
-        return new Point3(
-            $this->position->x + $t * $this->velocity->x,
-            $this->position->y + $t * $this->velocity->y,
-            $this->position->z + $t * $this->velocity->z,
-        );
-    }
-}
-
-class Point3
-{
-    public function __construct(
-        public int $x,
-        public int $y,
-        public int $z,
-    ) {
-    }
-
-    public function fakeUnit(): Vector3
-    {
-        $d = greatest_common_divisor($this->x, $this->y);
-        return new Vector3($this->x / $d, $this->y / $d, $this->z / $d);
-    }
-
-    public function unit2d(): Vector3
-    {
-        $m = sqrt(($this->x ** 2) + ($this->y ** 2));
-        return new Vector3($this->x / $m, $this->y / $m, $this->z / $m);
-    }
-
-    public function sub(Point3 $point): Point3
-    {
-        return new Point3(
-            $this->x - $point->x,
-            $this->y - $point->y,
-            $this->z - $point->z,
-        );
-    }
-
-    public function add(Point3 $point): Point3
-    {
-        return new Point3(
-            $this->x + $point->x,
-            $this->y + $point->y,
-            $this->z + $point->z,
-        );
-    }
-
-    public function multiply(Point3|float|int $point): Point3
-    {
-        if ($point instanceof Point3) {
-            return new Point3(
-                $this->x * $point->x,
-                $this->y * $point->y,
-                $this->z * $point->z,
-            );
-        } else {
-            dump($this->x * $point, $this->y * $point, $this->z * $point);
-            return new Point3(
-                $this->x * $point,
-                $this->y * $point,
-                $this->z * $point,
-            );
-        }
-    }
-
-    public function divide(int $n): Point3
-    {
-        return new Point3(
-            intdiv($this->x, $n),
-            intdiv($this->y, $n),
-            intdiv($this->z, $n),
-        );
-    }
-
-    public function equals(Point3 $point): bool
-    {
-        return
-            $this->x === $point->x &&
-            $this->y === $point->y &&
-            $this->z === $point->z
-        ;
-    }
-
-    public function dotProduct(Point3 $point): int
-    {
-        $p = $this->x * $point->x + $this->y * $point->y + $this->z * $point->z;
-        dump(number_format($p, 5));
-        return (int)round($p);
-    }
-
-    public function crossProduct(Point3 $point): Point3
-    {
-        return new Point3(
-            $this->y * $point->z - $this->z * $point->y,
-            $this->z * $point->x - $this->x * $point->z,
-            $this->x * $point->y - $this->y * $point->x,
-        );
-    }
-
-    public function __toString(): string
-    {
-        return "$this->x,$this->y,$this->z";
+        // https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
+        $a = (new Vector3())->sub($this->position)->dotProduct($normal);
+        $b = $this->velocity->dotProduct($normal);
+        $t = bcdiv($a, $b);
+        $p = $this->position->add($this->velocity->multiply($t));
+        return [$p, $t];
     }
 }
 
 class Vector3
 {
     public function __construct(
-        public float $x,
-        public float $y,
-        public float $z,
+        public string $x = '0',
+        public string $y = '0',
+        public string $z = '0',
     ) {
+    }
+
+    public function unit(): Vector3
+    {
+        $m = bcsqrt(bcadd(bcpow($this->x, '2'), bcpow($this->y, '2')));
+        return new Vector3(bcdiv($this->x, $m), bcdiv($this->y, $m), bcdiv($this->z, $m));
+    }
+
+    public function sub(Vector3 $point): Vector3
+    {
+        return new Vector3(
+            bcsub($this->x, $point->x),
+            bcsub($this->y, $point->y),
+            bcsub($this->z, $point->z),
+        );
+    }
+
+    public function add(Vector3 $point): Vector3
+    {
+        return new Vector3(
+            bcadd($this->x, $point->x),
+            bcadd($this->y, $point->y),
+            bcadd($this->z, $point->z),
+        );
+    }
+
+    public function multiply(string $val): Vector3
+    {
+            return new Vector3(
+                bcmul($this->x, $val),
+                bcmul($this->y, $val),
+                bcmul($this->z, $val),
+            );
+    }
+
+    public function divide(string $val): Vector3
+    {
+        return new Vector3(
+            bcdiv($this->x, $val),
+            bcdiv($this->y, $val),
+            bcdiv($this->z, $val),
+        );
+    }
+
+    public function dotProduct(Vector3 $point): string
+    {
+        $p = bcmul($this->x, $point->x);
+        $p = bcadd($p, bcmul($this->y, $point->y));
+        $p = bcadd($p, bcmul($this->z, $point->z));
+        return $p;
+    }
+
+    public function crossProduct(Vector3 $point): Vector3
+    {
+        return new Vector3(
+            bcsub(bcmul($this->y, $point->z), bcmul($this->z, $point->y)),
+            bcsub(bcmul($this->z, $point->x), bcmul($this->x, $point->z)),
+            bcsub(bcmul($this->x, $point->y), bcmul($this->y, $point->x)),
+        );
+    }
+
+    public function __toString(): string
+    {
+        return "$this->x,$this->y,$this->z";
     }
 }

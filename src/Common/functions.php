@@ -1,5 +1,7 @@
 <?php
 
+bcscale(60);
+
 if (!function_exists('gmp_gcd')) {
     function greatest_common_divisor(int $n, int $m): int
     {
@@ -36,23 +38,6 @@ if (!function_exists('gmp_lcm')) {
     function least_common_multiple(int $n, int $m): int
     {
         return gmp_intval(gmp_lcm($n, $m));
-    }
-}
-
-function dd()
-{
-    foreach (func_get_args() as $arg) {
-        print_r($arg);
-        echo "\n";
-    }
-    die;
-}
-
-function dump()
-{
-    foreach (func_get_args() as $arg) {
-        print_r($arg);
-        echo "\n";
     }
 }
 
