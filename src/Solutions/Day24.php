@@ -12,7 +12,7 @@ class Day24 extends AbstractSolution
         $hails = $this->getHailStones(true);
 
         $numHails = count($hails);
-        $limit = $numHails <10 ? [7, 27] : [200000000000000, 400000000000000];
+        $limit = $numHails < 10 ? [7, 27] : [200000000000000, 400000000000000];
         $count = 0;
         for ($i = 0; $i < $numHails - 1; $i++) {
             for ($ii = $i + 1; $ii < $numHails; $ii++) {
@@ -39,16 +39,18 @@ class Day24 extends AbstractSolution
 
     protected function solvePart2(): string
     {
+        // We need a lot of precision for this one
+        bcscale(60);
+
         $stones = $this->getHailStones();
-        $numStones = count($stones);
 
         // https://github.com/MarkSinke/aoc2023/blob/main/day24.go#L292
 
         $rootPosition = $stones[0]->position;
         $rootVelocity = $stones[0]->velocity;
 
-        // translate everything into a system with stones[0] as the frame of reference
-        for ($i = 0; $i < $numStones; $i++) {
+        // translate all used hail into a system with stones[0] as the frame of reference
+        for ($i = 0; $i <= 3; $i++) {
             $stones[$i]->position = $stones[$i]->position->sub($rootPosition);
             $stones[$i]->velocity = $stones[$i]->velocity->sub($rootVelocity);
         }
@@ -199,11 +201,11 @@ class Vector3
 
     public function multiply(string $val): Vector3
     {
-            return new Vector3(
-                bcmul($this->x, $val),
-                bcmul($this->y, $val),
-                bcmul($this->z, $val),
-            );
+        return new Vector3(
+            bcmul($this->x, $val),
+            bcmul($this->y, $val),
+            bcmul($this->z, $val),
+        );
     }
 
     public function divide(string $val): Vector3
@@ -230,15 +232,5 @@ class Vector3
             bcsub(bcmul($this->z, $point->x), bcmul($this->x, $point->z)),
             bcsub(bcmul($this->x, $point->y), bcmul($this->y, $point->x)),
         );
-    }
-
-    public function toPoint(): Point
-    {
-        return new Point((int)$this->x, (int)$this->y);
-    }
-
-    public function __toString(): string
-    {
-        return "$this->x,$this->y,$this->z";
     }
 }

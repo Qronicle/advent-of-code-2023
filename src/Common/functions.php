@@ -1,7 +1,5 @@
 <?php
 
-bcscale(60);
-
 if (!function_exists('gmp_gcd')) {
     function greatest_common_divisor(int $n, int $m): int
     {
