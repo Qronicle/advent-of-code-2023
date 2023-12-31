@@ -56,3 +56,8 @@ function mod(int $n1, int $n2) {
     }
     return $m;
 }
+
+function sign(int|float $n): int
+{
+    return $n === 0 ? 0 : ($n > 0 ? 1 : -1);
+}

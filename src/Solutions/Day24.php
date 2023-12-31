@@ -8,19 +8,27 @@ class Day24 extends AbstractSolution
 {
     protected function solvePart1(): string
     {
-        $hails = $this->getHailStones();
+        /** @var Ray2d[] $hails */
+        $hails = $this->getHailStones(true);
 
         $numHails = count($hails);
         $limit = $numHails <10 ? [7, 27] : [200000000000000, 400000000000000];
         $count = 0;
         for ($i = 0; $i < $numHails - 1; $i++) {
             for ($ii = $i + 1; $ii < $numHails; $ii++) {
-                $intersection = $hails[$i]->intersectXY($hails[$ii]);
+                $intersection = $hails[$i]->intersect($hails[$ii]);
                 if (!$intersection) {
                     continue;
                 }
-                [$x, $y] = $intersection;
-                if ($x < $limit[0] || $y < $limit[0] || $x > $limit[1] || $y > $limit[1]) {
+                // check in future
+                if (
+                    sign($intersection->x - $hails[$i]->position->x) !== sign($hails[$i]->velocity->x)
+                    || sign($intersection->x - $hails[$ii]->position->x) !== sign($hails[$ii]->velocity->x)
+                ) {
+                    continue;
+                }
+                // check within limits
+                if ($intersection->x < $limit[0] || $intersection->y < $limit[0] || $intersection->x > $limit[1] || $intersection->y > $limit[1]) {
                     continue;
                 }
                 $count++;
@@ -68,50 +76,69 @@ class Day24 extends AbstractSolution
     }
 
     /** @return Ray[] */
-    protected function getHailStones(): array
+    protected function getHailStones(bool $ray2d = false): array
     {
         $hails = [];
         foreach ($this->getInputLines() as $line) {
             [$pos, $vel] = explode(' @ ', $line);
-            $hails[] = new Ray(
-                new Vector3(...array_map('trim', explode(', ', $pos))),
-                new Vector3(...array_map('trim', explode(', ', $vel))),
-            );
+            $hails[] = $ray2d
+                ? new Ray2d(
+                    new Point(...array_map('trim', explode(', ', $pos))),
+                    new Point(...array_map('trim', explode(', ', $vel))),
+                )
+                : new Ray(
+                    new Vector3(...array_map('trim', explode(', ', $pos))),
+                    new Vector3(...array_map('trim', explode(', ', $vel))),
+                );
         }
         return $hails;
     }
 }
 
+// 2D //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class Ray2d
+{
+    public function __construct(
+        public Point $position,
+        public Point $velocity,
+    ) {
+    }
+
+    public function intersect(Ray2d $ray): ?Point
+    {
+        $determinant = $this->velocity->x * $ray->velocity->y - $this->velocity->y * $ray->velocity->x;
+        if ($determinant == 0) {
+            return null;
+        }
+
+        $u = $this->velocity->x * $this->position->y - $this->velocity->y * $this->position->x;
+        $v = $ray->velocity->x * $ray->position->y - $ray->velocity->y * $ray->position->x;
+
+        return new Point(
+            ($ray->velocity->x * $u - $this->velocity->x * $v) / $determinant,
+            ($ray->velocity->y * $u - $this->velocity->y * $v) / $determinant,
+        );
+    }
+}
+
+class Point
+{
+    public function __construct(
+        public float $x = 0,
+        public float $y = 0,
+    ) {
+    }
+}
+
+// 3D //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class Ray
 {
-    public Vector3 $direction;
-
     public function __construct(
         public Vector3 $position,
         public Vector3 $velocity,
     ) {
-        $this->direction = $this->velocity->unit();
-    }
-
-    public function intersectXY(Ray $ray): ?array
-    {
-        $det = bcsub(bcmul($ray->direction->x, $this->direction->y), bcmul($ray->direction->y, $this->direction->x));
-        if ($det == 0) {
-            return null;
-        }
-
-        $dx = bcsub($ray->position->x, $this->position->x);
-        $dy = bcsub($ray->position->y, $this->position->y);
-        $u = bcdiv(bcsub(bcmul($dy, $ray->direction->x), bcmul($dx, $ray->direction->y)), $det);
-        $v = bcdiv(bcsub(bcmul($dy, $this->direction->x), bcmul($dx, $this->direction->y)), $det);
-        if ($u < 0 || $v < 0) {
-            return null;
-        }
-
-        return [
-            (int)bcadd($this->position->x, bcmul($u, $this->direction->x)),
-            (int)bcadd($this->position->y, bcmul($u, $this->direction->y)),
-        ];
     }
 
     public function positionAt(int $t): Vector3
@@ -203,6 +230,11 @@ class Vector3
             bcsub(bcmul($this->z, $point->x), bcmul($this->x, $point->z)),
             bcsub(bcmul($this->x, $point->y), bcmul($this->y, $point->x)),
         );
+    }
+
+    public function toPoint(): Point
+    {
+        return new Point((int)$this->x, (int)$this->y);
     }
 
     public function __toString(): string
