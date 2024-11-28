@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+<?php
+
+require_once ('vendor/autoload.php');
+
+use AdventOfCode\Common\Command\BenchmarkSolutionsCommand;
+use AdventOfCode\Common\Command\CreateSolutionCommand;
+use AdventOfCode\Common\Command\MigrateInputCommand;
+use AdventOfCode\Common\Command\RunSolutionCommand;
+use Symfony\Component\Console\Application;
+
+define('BASE_DIR', dirname(__DIR__));
+
+$dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
+$dotenv->safeLoad();
+
+$application = new Application();
+
+$application->add(new RunSolutionCommand());
+$application->add(new CreateSolutionCommand());
+$application->add(new BenchmarkSolutionsCommand());
+$application->add(new MigrateInputCommand());
+
+return $application->run();

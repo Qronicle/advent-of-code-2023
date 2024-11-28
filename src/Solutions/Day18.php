@@ -3,6 +3,7 @@
 namespace AdventOfCode\Solutions;
 
 use AdventOfCode\Common\Solution\AbstractSolution;
+use AdventOfCode\Common\Utils\MapUtils;
 
 class Day18 extends AbstractSolution
 {

@@ -12,20 +12,18 @@ abstract class AbstractSolution
 {
     protected string $rawInput;
     protected int $aocPart;
-    protected ?string $aocInputType;
 
-    public function solve(int $part, string $inputFilename, ?string $inputType): string
+    public function solve(int $part, string $input): string
     {
         $this->aocPart = $part;
-        $this->aocInputType = $inputType;
         $method = 'solvePart' . $part;
-        $this->rawInput = file_get_contents($inputFilename);
+        $this->rawInput = $input;
         return $this->$method();
     }
 
-    abstract protected function solvePart1(): string;
+    abstract protected function solvePart1(): int|string;
 
-    abstract protected function solvePart2(): string;
+    abstract protected function solvePart2(): int|string;
 
     protected function getInputLines(): array
     {
